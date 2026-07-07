@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLANAR - 平面连杆机构仿真平台</title>
+    <meta name="description" content="通用交互式平面连杆机构仿真软件。支持自由建模、预设机构、Newton-Raphson 精确求解、拖拽逆运动学、多自由度驱动和动画仿真。">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部工具栏 -->
+        <header id="toolbar">
+            <div class="logo">PLAN<span>A</span>R</div>
+            <span class="toolbar-info">平面连杆机构仿真平台</span>
+            <div class="toolbar-spacer"></div>
+            <span class="toolbar-info" id="toolbar-status">点击预设或自由构建</span>
+        </header>
+
+        <!-- 主区域 -->
+        <div id="main">
+            <!-- Canvas 容器 -->
+            <div id="canvas-container">
+                <canvas></canvas>
+            </div>
+
+            <!-- 右侧面板（由 ui.js 动态填充） -->
+            <aside id="panel"></aside>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer id="status-bar">就绪</footer>
+    </div>
+
+    <!-- 加载脚本（顺序重要） -->
+    <script src="js/utils.js"></script>
+    <script src="js/model.js"></script>
+    <script src="js/solver.js"></script>
+    <script src="js/presets.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/interaction.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+/**
+ * PLANAR - 通用平面连杆机构仿真平台
+ * style.css - 样式表
+ *
+ * 支持亮色/暗色双主题。
+ */
+
+/* ============================================================
+   主题变量
+   ============================================================ */
+:root,
+[data-theme="light"] {
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e9ecef;
+    --text-primary: #333333;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    --border-color: #dee2e6;
+    --accent: #3498db;
+    --accent-hover: #2980b9;
+    --danger: #e74c3c;
+    --success: #27ae60;
+    --warning: #f39c12;
+    --toolbar-bg: #2c3e50;
+    --toolbar-text: #ffffff;
+    --panel-shadow: rgba(0, 0, 0, 0.08);
+    --mode-btn-bg: #e9ecef;
+    --mode-btn-active: #3498db;
+    --slider-track: #dee2e6;
+    --slider-thumb: #3498db;
+    --input-bg: #ffffff;
+}
+
+[data-theme="dark"] {
+    --bg-primary: #1a1d23;
+    --bg-secondary: #252830;
+    --bg-tertiary: #2d3239;
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
+    --text-muted: #777777;
+    --border-color: #3a3f48;
+    --accent: #5dade2;
+    --accent-hover: #3498db;
+    --danger: #ff6b6b;
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --toolbar-bg: #16181d;
+    --toolbar-text: #e0e0e0;
+    --panel-shadow: rgba(0, 0, 0, 0.2);
+    --mode-btn-bg: #2d3239;
+    --mode-btn-active: #5dade2;
+    --slider-track: #3a3f48;
+    --slider-thumb: #5dade2;
+    --input-bg: #2d3239;
+}
+
+/* ============================================================
+   全局重置
+   ============================================================ */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 11px;
+    font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--border-color);
+}
+
+/* ============================================================
+   布局
+   ============================================================ */
+#app {
+    display: grid;
+    grid-template-rows: 48px 1fr 28px;
+    height: 100vh;
+    width: 100vw;
+}
+
+#toolbar {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    background: var(--toolbar-bg);
+    color: var(--toolbar-text);
+    gap: 16px;
+    z-index: 10;
+    -webkit-app-region: drag;
+}
+
+#toolbar .logo {
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 1px;
+    -webkit-app-region: no-drag;
+}
+
+#toolbar .logo span {
+    color: var(--warning);
+}
+
+#toolbar .toolbar-spacer {
+    flex: 1;
+}
+
+#toolbar .toolbar-info {
+    font-size: 12px;
+    color: var(--text-muted);
+    -webkit-app-region: no-drag;
+}
+
+#main {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    overflow: hidden;
+}
+
+#canvas-container {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+#canvas-container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+
+#panel {
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+}
+
+/* ============================================================
+   面板元素
+   ============================================================ */
+.panel-section {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+/* 信息网格 */
+.info-grid {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 4px 8px;
+    font-size: 13px;
+}
+
+.info-label {
+    color: var(--text-muted);
+}
+
+.info-value {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+/* 选择框 */
+.ui-select {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.ui-select:focus {
+    border-color: var(--accent);
+}
+
+/* 模式按钮 */
+.mode-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+}
+
+.mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--mode-btn-bg);
+    border: 2px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn:hover {
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.mode-btn.active {
+    border-color: var(--mode-btn-active);
+    background: var(--mode-btn-active);
+    color: #ffffff;
+}
+
+/* 通用按钮 */
+.ui-btn {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.ui-btn:last-child {
+    margin-bottom: 0;
+}
+
+.ui-btn:hover {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+}
+
+.icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    padding: 6px 10px;
+    margin-bottom: 0;
+}
+
+/* 动画控制 */
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.speed-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: 4px;
+}
+
+.speed-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    min-width: 32px;
+    text-align: right;
+}
+
+/* 滑块 */
+.ui-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 4px;
+    background: var(--slider-track);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.ui-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--slider-thumb);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.ui-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.ui-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--slider-thumb);
+    border: none;
+    cursor: pointer;
+}
+
+/* 复选框行 */
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.checkbox-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* 快捷键 */
+.shortcuts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.shortcuts span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ============================================================
+   状态栏
+   ============================================================ */
+#status-bar {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================================
+   滚动条
+   ============================================================ */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ============================================================
+   响应式设计
+   ============================================================ */
+@media (max-width: 1023px) {
+    #main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr auto;
+    }
+
+    #panel {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        max-height: 240px;
+        min-height: 180px;
+    }
+}
+
+@media (max-width: 767px) {
+    #toolbar .toolbar-info {
+        display: none;
+    }
+
+    #panel {
+        max-height: 180px;
+        min-height: 120px;
+        padding: 8px;
+    }
+
+    .shortcuts {
+        display: none;
+    }
+}
