@@ -56,6 +56,16 @@ open index.html
 xdg-open index.html
 ```
 
+### 发布到 GitHub Pages（手机访问推荐）
+
+仓库已包含自动部署工作流：`.github/workflows/deploy-pages.yml`。  
+首次启用时请在 GitHub 仓库执行：
+
+1. 进入 **Settings → Pages**
+2. **Build and deployment** 的 **Source** 选择 **GitHub Actions**
+3. 推送到 `main` 分支后，等待 `Deploy static site to GitHub Pages` 工作流完成
+4. 使用生成的 `https://<用户名>.github.io/<仓库名>/` 链接在手机浏览器打开
+
 ## 项目结构
 
 ```
