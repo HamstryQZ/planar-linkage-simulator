@@ -123,6 +123,18 @@ class UIManager {
                 <input type="file" id="import-file" accept=".json" style="display:none;">
             </div>
 
+            <div class="panel-section mobile-actions" id="mobile-actions">
+                <h3 class="panel-title">移动端快捷操作</h3>
+                <div class="mobile-action-grid">
+                    <button id="btn-mobile-driver" class="ui-btn">设/取消驱动</button>
+                    <button id="btn-mobile-delete" class="ui-btn">删除选中</button>
+                    <button id="btn-mobile-play" class="ui-btn">播放/暂停</button>
+                    <button id="btn-mobile-reset" class="ui-btn">重置</button>
+                    <button id="btn-mobile-clear-traces" class="ui-btn">清轨迹</button>
+                </div>
+                <div class="mobile-hint">先点击节点/连杆选中，再执行操作。</div>
+            </div>
+
             <div class="panel-section">
                 <h3 class="panel-title">机构检查</h3>
                 <div id="validation-panel" style="font-size:11px;max-height:100px;overflow-y:auto;color:#666;">
@@ -186,6 +198,11 @@ class UIManager {
             btnExport: document.getElementById('btn-export'),
             btnImport: document.getElementById('btn-import'),
             importFile: document.getElementById('import-file'),
+            btnMobileDriver: document.getElementById('btn-mobile-driver'),
+            btnMobileDelete: document.getElementById('btn-mobile-delete'),
+            btnMobilePlay: document.getElementById('btn-mobile-play'),
+            btnMobileReset: document.getElementById('btn-mobile-reset'),
+            btnMobileClearTraces: document.getElementById('btn-mobile-clear-traces'),
             btnSaveLocal: document.getElementById('btn-save-local'),
             btnLoadLocal: document.getElementById('btn-load-local'),
             btnDelLocal: document.getElementById('btn-del-local'),
@@ -316,6 +333,40 @@ class UIManager {
             });
         }
 
+        // 移动端操作按钮
+        if (this.els.btnMobileDriver) {
+            this.els.btnMobileDriver.addEventListener('click', () => {
+                if (!this.interaction.toggleDriverOnSelection()) {
+                    alert('请先选中连杆');
+                }
+            });
+        }
+        if (this.els.btnMobileDelete) {
+            this.els.btnMobileDelete.addEventListener('click', () => {
+                if (!this.interaction.deleteSelection()) {
+                    alert('请先选中节点或连杆');
+                }
+            });
+        }
+        if (this.els.btnMobilePlay) {
+            this.els.btnMobilePlay.addEventListener('click', () => {
+                if (this.interaction.getMode() !== this.interaction.MODE.ANIMATE) {
+                    this.interaction.setMode(this.interaction.MODE.ANIMATE);
+                }
+                this.interaction.toggleAnimation();
+                this._updatePlayButton();
+            });
+        }
+        if (this.els.btnMobileReset) {
+            this.els.btnMobileReset.addEventListener('click', () => this.interaction.resetAnimation());
+        }
+        if (this.els.btnMobileClearTraces) {
+            this.els.btnMobileClearTraces.addEventListener('click', () => {
+                this.renderer.clearTraces();
+                this.renderer.render(this.mechanism);
+            });
+        }
+
         // 本地库按钮
         if (this.els.btnSaveLocal) {
             this.els.btnSaveLocal.addEventListener('click', () => this._saveLocal());
@@ -361,25 +412,8 @@ class UIManager {
     loadPreset(presetId) {
         try {
             const mech = Planar.Presets.build(presetId);
-            this.mechanism = mech;
-            this.interaction.setMechanism(mech);
-            this.renderer.setMechanism(mech);
-            this.renderer.clearTraces();
-            this.interaction.resetAnimation();
-            this.renderer.render(mech);
             this._currentPresetId = presetId;
-
-            // 尝试求解初始位置
-            const solver = this.interaction.solver;
-            solver.solve(mech);
-            this.renderer.render(mech);
-
-            this._updateStatusBar({ mode: this.interaction.getMode(), dof: mech.getDOF(), nodes: mech.nodes.size, links: mech.links.size, drivers: mech.drivers.size });
-            this._updateValidation();
-            this._updateDriverPanel();
-            // 自动适应视图
-            this.interaction.fitView();
-            if (this.els.presetSelect) this.els.presetSelect.value = presetId;
+            this._applyLoadedMechanism(mech, { solveInitial: true, presetId });
         } catch (err) {
             console.error('Failed to load preset:', err);
         }
@@ -420,13 +454,9 @@ class UIManager {
             try {
                 const data = JSON.parse(e.target.result);
                 const mech = Planar.Mechanism.fromJSON(data);
-                this.mechanism = mech;
-                this.interaction.setMechanism(mech);
-                this.renderer.setMechanism(mech);
-                this.renderer.clearTraces();
-                this.interaction.resetAnimation();
-                this.renderer.render(mech);
-                this._updateStatusBar({ mode: this.interaction.getMode(), dof: mech.getDOF(), nodes: mech.nodes.size, links: mech.links.size, drivers: mech.drivers.size });
+                this._currentPresetId = null;
+                this._applyLoadedMechanism(mech);
+                if (this.els.presetSelect) this.els.presetSelect.value = '';
             } catch (err) {
                 console.error('Failed to import JSON:', err);
                 alert('导入失败：无效的 JSON 文件');
@@ -633,23 +663,66 @@ class UIManager {
             const data = JSON.parse(localStorage.getItem(key));
             if (!data) throw new Error('数据不存在');
             const mech = Planar.Mechanism.fromJSON(data);
-            this.mechanism = mech;
-            this.interaction.setMechanism(mech);
-            this.renderer.setMechanism(mech);
-            this.renderer.clearTraces();
-            this.interaction.resetAnimation();
-            this.renderer.render(mech);
-            this._updateStatusBar({
-                mode: this.interaction.getMode(),
-                dof: mech.getDOF(),
-                nodes: mech.nodes.size,
-                links: mech.links.size,
-                drivers: mech.drivers.size
-            });
+            this._currentPresetId = null;
+            this._applyLoadedMechanism(mech);
+            if (this.els.presetSelect) this.els.presetSelect.value = '';
         } catch (err) {
             console.error('Failed to load local mechanism:', err);
             alert('加载失败：数据损坏或不存在');
         }
+    }
+
+    _buildStatusPayload() {
+        if (!this.mechanism) {
+            return {
+                mode: this.interaction.getMode(),
+                dof: 0,
+                nodes: 0,
+                links: 0,
+                drivers: 0,
+                playing: this.interaction.isPlaying(),
+                scale: this.renderer.scale
+            };
+        }
+        return {
+            mode: this.interaction.getMode(),
+            dof: this.mechanism.getDOF(),
+            nodes: this.mechanism.nodes.size,
+            links: this.mechanism.links.size,
+            drivers: this.mechanism.drivers.size,
+            playing: this.interaction.isPlaying(),
+            scale: this.renderer.scale
+        };
+    }
+
+    _refreshMechanismUI() {
+        this._updateStatusBar(this._buildStatusPayload());
+        this._updateValidation();
+        this._updateDriverPanel();
+        this._updatePlayButton();
+    }
+
+    _applyLoadedMechanism(mech, options = {}) {
+        this.mechanism = mech;
+        this.interaction.setMechanism(mech);
+        this.renderer.setMechanism(mech);
+        this.renderer.clearTraces();
+        this.interaction.resetAnimation();
+
+        if (options.solveInitial) {
+            this.interaction.solver.solve(mech);
+        }
+
+        this.renderer.render(mech);
+        this.interaction.fitView();
+        this.renderer.clearTraces();
+        this.renderer.render(mech);
+
+        if (options.presetId && this.els.presetSelect) {
+            this.els.presetSelect.value = options.presetId;
+        }
+
+        this._refreshMechanismUI();
     }
 
     /**
