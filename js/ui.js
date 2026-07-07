@@ -124,6 +124,30 @@ class UIManager {
             </div>
 
             <div class="panel-section">
+                <h3 class="panel-title">机构检查</h3>
+                <div id="validation-panel" style="font-size:11px;max-height:100px;overflow-y:auto;color:#666;">
+                    <span style="color:#999;">（暂无检查信息）</span>
+                </div>
+            </div>
+
+            <div class="panel-section" id="driver-panel" style="display:none;">
+                <h3 class="panel-title">驱动属性</h3>
+                <div id="driver-editor" style="font-size:11px;"></div>
+            </div>
+
+            <div class="panel-section">
+                <h3 class="panel-title">本地库</h3>
+                <div class="control-row">
+                    <button id="btn-save-local" class="ui-btn" title="保存当前机构到本地">保存</button>
+                    <button id="btn-load-local" class="ui-btn" title="从本地加载机构">加载</button>
+                    <button id="btn-del-local" class="ui-btn" title="删除选中的本地机构">删除</button>
+                </div>
+                <select id="local-list" class="ui-select" size="4" style="width:100%;margin-top:4px;font-size:11px;">
+                    <option value="" disabled>（暂无保存的机构）</option>
+                </select>
+            </div>
+
+            <div class="panel-section">
                 <h3 class="panel-title">快捷键</h3>
                 <div class="shortcuts">
                     <span><kbd>1</kbd> 构建</span>
@@ -161,8 +185,18 @@ class UIManager {
             btnTheme: document.getElementById('btn-theme'),
             btnExport: document.getElementById('btn-export'),
             btnImport: document.getElementById('btn-import'),
-            importFile: document.getElementById('import-file')
+            importFile: document.getElementById('import-file'),
+            btnSaveLocal: document.getElementById('btn-save-local'),
+            btnLoadLocal: document.getElementById('btn-load-local'),
+            btnDelLocal: document.getElementById('btn-del-local'),
+            localList: document.getElementById('local-list'),
+            validationPanel: document.getElementById('validation-panel'),
+            driverPanel: document.getElementById('driver-panel'),
+            driverEditor: document.getElementById('driver-editor')
         };
+
+        // 初始化本地库列表
+        this._refreshLocalList();
 
         // 填充预设列表
         this._populatePresets();
@@ -281,14 +315,31 @@ class UIManager {
                 this._importJSON(file);
             });
         }
+
+        // 本地库按钮
+        if (this.els.btnSaveLocal) {
+            this.els.btnSaveLocal.addEventListener('click', () => this._saveLocal());
+        }
+        if (this.els.btnLoadLocal) {
+            this.els.btnLoadLocal.addEventListener('click', () => this._loadLocal());
+        }
+        if (this.els.btnDelLocal) {
+            this.els.btnDelLocal.addEventListener('click', () => this._delLocal());
+        }
     }
 
     /** 注册交互管理器的回调 */
     _registerCallbacks() {
-        this.interaction.onStatus = (status) => this._updateStatusBar(status);
+        this.interaction.onStatus = (status) => {
+            this._updateStatusBar(status);
+            this._updateValidation();
+            this._updateDriverPanel();
+        };
         this.interaction.onModeChange = (mode) => this._onModeChanged(mode);
         this.interaction.onChange = (mech) => {
             this.mechanism = mech;
+            this._updateValidation();
+            this._updateDriverPanel();
         };
     }
 
@@ -324,6 +375,10 @@ class UIManager {
             this.renderer.render(mech);
 
             this._updateStatusBar({ mode: this.interaction.getMode(), dof: mech.getDOF(), nodes: mech.nodes.size, links: mech.links.size, drivers: mech.drivers.size });
+            this._updateValidation();
+            this._updateDriverPanel();
+            // 自动适应视图
+            this.interaction.fitView();
             if (this.els.presetSelect) this.els.presetSelect.value = presetId;
         } catch (err) {
             console.error('Failed to load preset:', err);
@@ -403,6 +458,85 @@ class UIManager {
         }
     }
 
+    // ============================================================
+    // 机构检查面板
+    // ============================================================
+    _updateValidation() {
+        const panel = this.els.validationPanel;
+        if (!panel) return;
+        if (!this.mechanism || this.mechanism.nodes.size === 0) {
+            panel.innerHTML = '<span style="color:#999;">（暂无检查信息）</span>';
+            return;
+        }
+        const msgs = this.mechanism.validate();
+        if (msgs.length === 0) {
+            panel.innerHTML = '<span style="color:#27ae60;">✓ 未发现问题</span>';
+            return;
+        }
+        panel.innerHTML = msgs.map(m => {
+            const c = m.type === 'error' ? '#e74c3c' : m.type === 'warn' ? '#f39c12' : '#3498db';
+            const icon = m.type === 'error' ? '✗' : m.type === 'warn' ? '⚠' : 'ℹ';
+            return `<div style="color:${c};"><span>${icon} ${m.message}</span></div>`;
+        }).join('');
+    }
+
+    // ============================================================
+    // 驱动属性编辑面板
+    // ============================================================
+    _updateDriverPanel() {
+        const panel = this.els.driverPanel;
+        const editor = this.els.driverEditor;
+        if (!panel || !editor) return;
+        
+        if (!this.mechanism || this.mechanism.drivers.size === 0) {
+            panel.style.display = 'block';
+            editor.innerHTML = '<div style="color:#999;padding:4px;">无驱动。<br>方法：选中连杆后按 <kbd>D</kbd> 设置为主动杆</div>';
+            return;
+        }
+
+        panel.style.display = 'block';
+        let html = '';
+        for (const driver of this.mechanism.drivers.values()) {
+            const link = this.mechanism.getLink(driver.linkId);
+            const linkLabel = link ? `L#${driver.linkId}` : `(#${driver.linkId})`;
+            html += `
+                <div style="margin-bottom:6px;padding:4px;border:1px solid #ddd;border-radius:3px;">
+                    <div style="font-weight:bold;margin-bottom:2px;">驱动 ${driver.id} ${driver.active?'🟢':'⚪'} ${linkLabel}</div>
+                    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                        <span style="font-size:10px;">ω:</span>
+                        <input type="number" step="0.1" value="${driver.omega.toFixed(1)}"
+                            style="width:50px;font-size:10px;padding:1px 2px;"
+                            data-driver-id="${driver.id}" data-field="omega">
+                        <span style="font-size:10px;">θ₀:</span>
+                        <input type="number" step="0.1" value="${driver.theta0.toFixed(1)}"
+                            style="width:50px;font-size:10px;padding:1px 2px;"
+                            data-driver-id="${driver.id}" data-field="theta0">
+                        <label style="font-size:10px;">
+                            <input type="checkbox" ${driver.active?'checked':''}
+                                data-driver-id="${driver.id}" data-field="active"> 启用
+                        </label>
+                    </div>
+                </div>`;
+        }
+        editor.innerHTML = html;
+
+        // 绑定输入事件
+        editor.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('change', (e) => {
+                const did = parseInt(e.target.dataset.driverId);
+                const field = e.target.dataset.field;
+                const driver = this.mechanism.getDriver(did);
+                if (!driver) return;
+                if (field === 'omega') driver.omega = parseFloat(e.target.value) || 0;
+                else if (field === 'theta0') {
+                    driver.theta0 = parseFloat(e.target.value) || 0;
+                    driver.theta = driver.theta0;
+                } else if (field === 'active') driver.active = e.target.checked;
+                this.renderer.render(this.mechanism);
+            });
+        });
+    }
+
     /** 更新播放按钮图标 */
     _updatePlayButton() {
         const btn = this.els.btnPlay;
@@ -412,6 +546,128 @@ class UIManager {
             ? '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="2" width="4" height="12" fill="currentColor"/><rect x="9" y="2" width="4" height="12" fill="currentColor"/></svg>'
             : '<svg width="16" height="16" viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14" fill="currentColor"/></svg>';
         btn.title = playing ? '暂停 [空格]' : '播放 [空格]';
+    }
+
+    // ============================================================
+    // 本地库 (localStorage)
+    // ============================================================
+
+    /**
+     * 获取所有本地保存的机构列表
+     */
+    _getLocalList() {
+        try {
+            return JSON.parse(localStorage.getItem('planar_saved') || '[]');
+        } catch { return []; }
+    }
+
+    /**
+     * 保存机构列表到 localStorage
+     */
+    _setLocalList(list) {
+        localStorage.setItem('planar_saved', JSON.stringify(list));
+    }
+
+    /**
+     * 刷新本地库下拉列表
+     */
+    _refreshLocalList() {
+        const sel = this.els.localList;
+        if (!sel) return;
+        const list = this._getLocalList();
+        sel.innerHTML = '';
+        if (list.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.disabled = true;
+            opt.textContent = '（暂无保存的机构）';
+            sel.appendChild(opt);
+        } else {
+            for (const item of list) {
+                const opt = document.createElement('option');
+                opt.value = item.key;
+                opt.textContent = `${item.name}  (${item.nodes}节点)`;
+                sel.appendChild(opt);
+            }
+        }
+    }
+
+    /**
+     * 保存当前机构到本地
+     */
+    _saveLocal() {
+        if (!this.mechanism || this.mechanism.nodes.size === 0) {
+            alert('没有机构可保存');
+            return;
+        }
+        const name = prompt('请输入机构名称：', this.mechanism.name || '自定义机构');
+        if (!name) return;
+
+        const json = this.mechanism.toJSON();
+        const key = 'planar_mech_' + Date.now();
+        const list = this._getLocalList();
+        list.push({
+            key,
+            name: name,
+            nodes: this.mechanism.nodes.size,
+            links: this.mechanism.links.size,
+            drivers: this.mechanism.drivers.size,
+            savedAt: new Date().toLocaleString()
+        });
+        this._setLocalList(list);
+        localStorage.setItem(key, JSON.stringify(json));
+        this._refreshLocalList();
+    }
+
+    /**
+     * 从本地加载选中的机构
+     */
+    _loadLocal() {
+        const sel = this.els.localList;
+        if (!sel || !sel.value) {
+            alert('请先在列表中选择一个机构');
+            return;
+        }
+        const key = sel.value;
+        try {
+            const data = JSON.parse(localStorage.getItem(key));
+            if (!data) throw new Error('数据不存在');
+            const mech = Planar.Mechanism.fromJSON(data);
+            this.mechanism = mech;
+            this.interaction.setMechanism(mech);
+            this.renderer.setMechanism(mech);
+            this.renderer.clearTraces();
+            this.interaction.resetAnimation();
+            this.renderer.render(mech);
+            this._updateStatusBar({
+                mode: this.interaction.getMode(),
+                dof: mech.getDOF(),
+                nodes: mech.nodes.size,
+                links: mech.links.size,
+                drivers: mech.drivers.size
+            });
+        } catch (err) {
+            console.error('Failed to load local mechanism:', err);
+            alert('加载失败：数据损坏或不存在');
+        }
+    }
+
+    /**
+     * 删除选中的本地机构
+     */
+    _delLocal() {
+        const sel = this.els.localList;
+        if (!sel || !sel.value) {
+            alert('请先在列表中选择一个机构');
+            return;
+        }
+        const key = sel.value;
+        if (!confirm('确定删除选中的机构？')) return;
+
+        localStorage.removeItem(key);
+        const list = this._getLocalList().filter(item => item.key !== key);
+        this._setLocalList(list);
+        this._refreshLocalList();
     }
 }
 

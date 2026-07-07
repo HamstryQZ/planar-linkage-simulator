@@ -68,10 +68,23 @@ class InteractionManager {
             'D': 'toggleDriver'
         };
 
+        // Ctrl+Z / Ctrl+Y 撤销重做
+        this._keyMapCC = {
+            'z': 'undo',
+            'Z': 'undo',
+            'y': 'redo',
+            'Y': 'redo'
+        };
+
         // 回调
         this.onChange = null;       // 机构改变回调
         this.onStatus = null;       // 状态栏更新回调
         this.onModeChange = null;   // 模式切换回调
+
+        // 撤销/重做栈
+        this._undoStack = [];
+        this._redoStack = [];
+        this._undoMaxSteps = 30;
 
         // 绑定事件
         this._bindEvents();
@@ -84,6 +97,9 @@ class InteractionManager {
         this._buildState.firstNodeId = null;
         this._buildState.pendingLink = false;
         if (this._animState.playing) this.stopAnimation();
+        // 设置新机构时清空撤销栈
+        this._undoStack = [];
+        this._redoStack = [];
     }
 
     /** 设置渲染器引用 */
@@ -156,9 +172,11 @@ class InteractionManager {
         const oldScale = this.renderer.scale;
         this.renderer.scale = Math.max(0.05, Math.min(20, this.renderer.scale * factor));
         const actualFactor = this.renderer.scale / oldScale;
-        // 保持鼠标位置不变
-        this.renderer.offsetX = world.x - centerX / this.renderer.scale;
-        this.renderer.offsetY = world.y - centerY / this.renderer.scale;
+        // 保持鼠标位置在世界坐标中不变
+        // screenToWorld: world = screen/scale - offset
+        // 保持 world 不变 → offset = screen/scale - world
+        this.renderer.offsetX = centerX / this.renderer.scale - world.x;
+        this.renderer.offsetY = centerY / this.renderer.scale - world.y;
         this.renderer.render(this.mechanism);
         this._updateStatus();
     }
@@ -219,7 +237,7 @@ class InteractionManager {
                 this._onBuildPointerDown(pos, isLeft, isRight);
                 break;
             case this.MODE.DRAG:
-                this._onDragPointerDown(pos, isLeft);
+                this._onDragPointerDown(e, pos, isLeft);
                 break;
             case this.MODE.ANIMATE:
                 // 动画模式下只允许平移/缩放
@@ -257,7 +275,7 @@ class InteractionManager {
                 this._onBuildPointerMove(pos);
                 break;
             case this.MODE.DRAG:
-                this._onDragPointerMove(pos);
+                this._onDragPointerMove(pos, e);
                 break;
         }
     }
@@ -345,7 +363,7 @@ class InteractionManager {
     // ============================================================
     // 拖动模式
     // ============================================================
-    _onDragPointerDown(pos, isLeft) {
+    _onDragPointerDown(e, pos, isLeft) {
         if (!this.mechanism) return;
 
         const hit = this.renderer.hitTestNode(pos.x, pos.y);
@@ -355,10 +373,20 @@ class InteractionManager {
             this._dragState.draggedNodeId = hit.node.id;
             this._dragState.dragTargetX = pos.x;
             this._dragState.dragTargetY = pos.y;
+            // 防止 pointer 丢失捕获
+            this.renderer.canvas.setPointerCapture(e.pointerId);
         }
     }
 
-    _onDragPointerMove(pos) {
+    _onDragPointerMove(pos, e) {
+        // 安全守卫：如果按钮已释放但 dragging 仍为 true，强制清除
+        if (this._dragState.dragging && e && e.buttons === 0 && this._dragState.draggedNodeId !== 'pan') {
+            this._dragState.dragging = false;
+            this._dragState.draggedNodeId = null;
+            this._dragState.previousPositions = null;
+            return;
+        }
+
         if (!this._dragState.dragging || this._dragState.draggedNodeId === 'pan') return;
         if (this._dragState.draggedNodeId === null) return;
 
@@ -459,6 +487,7 @@ class InteractionManager {
     // 机构修改操作
     // ============================================================
     addNode(x, y, fixed = false) {
+        this._saveSnapshot();
         if (!this.mechanism) {
             this.mechanism = new Planar.Mechanism();
             this.renderer.setMechanism(this.mechanism);
@@ -471,6 +500,7 @@ class InteractionManager {
     }
 
     removeNode(nodeId) {
+        this._saveSnapshot();
         if (!this.mechanism) return;
         this.mechanism.removeNode(nodeId);
         this.renderer.selectedNode = null;
@@ -480,6 +510,7 @@ class InteractionManager {
     }
 
     addLink(nodeA, nodeB) {
+        this._saveSnapshot();
         if (!this.mechanism) return null;
         // 检查是否已存在重复连杆
         for (const link of this.mechanism.links.values()) {
@@ -496,6 +527,7 @@ class InteractionManager {
     }
 
     removeLink(linkId) {
+        this._saveSnapshot();
         if (!this.mechanism) return;
         this.mechanism.removeLink(linkId);
         this.renderer.selectedLink = null;
@@ -505,6 +537,7 @@ class InteractionManager {
     }
 
     toggleDriver(linkId) {
+        this._saveSnapshot();
         if (!this.mechanism) return;
         // 检查是否已有驱动
         for (const [id, driver] of this.mechanism.drivers) {
@@ -525,7 +558,22 @@ class InteractionManager {
     // 键盘快捷键
     // ============================================================
     _onKeyDown(e) {
-        const action = this._keyMap[e.key];
+        // Ctrl+Z / Ctrl+Y（任何模式下）
+        if (e.ctrlKey || e.metaKey) {
+            const ccAction = this._keyMapCC[e.key];
+            if (ccAction) {
+                e.preventDefault();
+                if (ccAction === 'undo') this.undo();
+                else if (ccAction === 'redo') this.redo();
+                return;
+            }
+        }
+
+        // 先精确匹配，再尝试大写（针对字母键）
+        let action = this._keyMap[e.key];
+        if (!action && e.key.length === 1) {
+            action = this._keyMap[e.key.toUpperCase()];
+        }
         if (!action) return;
         e.preventDefault();
 
@@ -571,6 +619,57 @@ class InteractionManager {
                 }
                 break;
         }
+    }
+
+    // ============================================================
+    // 撤销/重做
+    // ============================================================
+
+    /** 保存当前机构快照到撤销栈 */
+    _saveSnapshot() {
+        if (!this.mechanism) return;
+        const json = this.mechanism.toJSON();
+        this._undoStack.push(json);
+        if (this._undoStack.length > this._undoMaxSteps) {
+            this._undoStack.shift();
+        }
+        // 任何新改动会清空重做栈
+        this._redoStack = [];
+    }
+
+    /** 从撤销栈恢复 */
+    undo() {
+        if (this._undoStack.length === 0) return;
+        // 保存当前状态到重做栈
+        if (this.mechanism) {
+            this._redoStack.push(this.mechanism.toJSON());
+        }
+        const json = this._undoStack.pop();
+        this._applySnapshot(json);
+        if (this.onModeChange) this.onModeChange(this.mode);
+    }
+
+    /** 从重做栈恢复 */
+    redo() {
+        if (this._redoStack.length === 0) return;
+        // 保存当前状态到撤销栈
+        if (this.mechanism) {
+            this._undoStack.push(this.mechanism.toJSON());
+        }
+        const json = this._redoStack.pop();
+        this._applySnapshot(json);
+        if (this.onModeChange) this.onModeChange(this.mode);
+    }
+
+    /** 应用快照到当前机构 */
+    _applySnapshot(json) {
+        const mech = Planar.Mechanism.fromJSON(json);
+        this.mechanism = mech;
+        this.renderer.setMechanism(mech);
+        this.renderer.clearTraces();
+        this.renderer.render(mech);
+        if (this.onChange) this.onChange(mech);
+        this._updateStatus();
     }
 
     // ============================================================

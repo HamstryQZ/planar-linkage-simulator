@@ -340,6 +340,72 @@ class Mechanism {
     }
 
     /**
+     * 机构智能检测：返回警告/错误列表
+     * @returns {Array<{type:'error'|'warn'|'info', message:string}>}
+     */
+    validate() {
+        const messages = [];
+
+        // 1. 检查孤立节点（未参与任何连杆）
+        const connectedNodes = new Set();
+        for (const link of this.links.values()) {
+            connectedNodes.add(link.nodeA);
+            connectedNodes.add(link.nodeB);
+        }
+        for (const [id, node] of this.nodes) {
+            if (!connectedNodes.has(id)) {
+                messages.push({ type: 'warn', message: `节点 #${id} 未连接到任何连杆` });
+            }
+        }
+
+        // 2. 固定节点检查
+        const fixedNodes = [];
+        for (const [id, node] of this.nodes) {
+            if (node.fixed) fixedNodes.push(id);
+        }
+        if (fixedNodes.length === 0) {
+            messages.push({ type: 'warn', message: '没有固定节点，机构无约束基准' });
+        }
+
+        // 3. 自由度和驱动检查
+        const dof = this.getDOF();
+        const nDrivers = this.drivers.size;
+
+        if (dof < 0) {
+            messages.push({ type: 'error', message: `机构过约束：DOF=${dof} < 0，可能无法运动` });
+        } else if (dof > 3) {
+            messages.push({ type: 'info', message: `高自由度机构：DOF=${dof}，需要 ${dof} 个驱动` });
+        }
+
+        if (dof >= 0 && nDrivers > dof) {
+            messages.push({ type: 'warn', message: `驱动过多：${nDrivers} 个驱动 > DOF=${dof}，过驱动` });
+        }
+        if (dof > 0 && nDrivers === 0) {
+            messages.push({ type: 'warn', message: '无驱动器，无法进行动画仿真' });
+        }
+        if (dof > 0 && nDrivers > 0 && nDrivers < dof) {
+            messages.push({ type: 'warn', message: `驱动不足：${nDrivers} 个驱动 < DOF=${dof}，部分自由度不可控` });
+        }
+
+        // 4. 检查杆长残差（初始装配误差）
+        const maxErr = this.maxError();
+        if (maxErr > 1e-4) {
+            messages.push({ type: 'warn', message: `杆长误差较大 (${maxErr.toExponential(2)})，机构可能不能完美装配` });
+        } else if (maxErr < 1e-12) {
+            messages.push({ type: 'info', message: '杆长装配精度极高' });
+        }
+
+        // 5. 检查零长连杆
+        for (const link of this.links.values()) {
+            if (link.length < 1e-10) {
+                messages.push({ type: 'error', message: `连杆 #${link.id} 长度为零` });
+            }
+        }
+
+        return messages;
+    }
+
+    /**
      * 获取驱动器的（节点A, 节点B, 当前角度）信息
      * 用于求解器设置旋转驱动约束
      */

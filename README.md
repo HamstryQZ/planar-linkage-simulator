@@ -1,6 +1,7 @@
 # PLANAR - 平面连杆机构仿真平台
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Status: Unstable](https://img.shields.io/badge/Status-Unstable-orange)](.)
 
 **PLANAR** 是一个通用交互式平面连杆机构仿真软件。它运行在浏览器中，无需安装任何依赖，支持从简单的四杆机构到复杂的多自由度机械臂的建模与仿真。
 
@@ -14,18 +15,35 @@
   - **构建模式** [1] — 自由添加节点（左键自由/右键固定）、连杆、驱动器
   - **拖动模式** [2] — 拖拽节点进行逆运动学实时求解
   - **动画模式** [3] — 多驱动器同步运动仿真
-- **8 个内置预设** — 曲柄摇杆、双曲柄、五杆、SCARA 2R 机械臂、并联五杆、Watt 六杆、平行四边形、曲柄滑块
+- **9 个内置预设** — 曲柄摇杆、双曲柄、五杆、SCARA 2R 机械臂、并联五杆、Watt 六杆、平行四边形、曲柄滑块、Dobot Magician 机械臂
 - **轨迹追踪** — 自动记录并显示自由节点的运动轨迹
 - **亮色/暗色双主题** — 一键切换
 - **导入/导出** — JSON 格式的机构定义导入导出
+- **本地库** — 浏览器 localStorage 保存/加载自定义机构，关闭后仍在
 - **零依赖** — 纯 HTML + CSS + JavaScript，无需任何外部库
 - **响应式设计** — 支持桌面大屏和移动设备
 
 ## 快速开始
 
-### 直接使用
+### 使用本地服务器（推荐）
 
-用浏览器打开 `index.html` 即可。
+由于浏览器安全策略，直接双击 `index.html` 用 `file://` 协议打开可能无法正常工作（控制台出现 `Unsafe attempt to load URL` 安全警告）。请务必使用本地 HTTP 服务器运行：
+
+```bash
+# 使用 Python 3
+python -m http.server 8080
+# 然后打开 http://localhost:8080
+
+# 使用 Node.js (npx)
+npx serve .
+
+# 使用 VS Code Live Server 插件
+# 右键 index.html → Open with Live Server
+```
+
+### 直接打开（不推荐）
+
+直接用浏览器打开 `index.html` 也可，但部分浏览器安全策略可能导致异常。
 
 ```bash
 # Windows
@@ -36,17 +54,6 @@ open index.html
 
 # Linux
 xdg-open index.html
-```
-
-### 使用本地服务器（推荐）
-
-```bash
-# 使用 Python
-python -m http.server 8080
-# 然后打开 http://localhost:8080
-
-# 使用 Node.js (npx)
-npx serve .
 ```
 
 ## 项目结构
@@ -61,7 +68,7 @@ planar-linkage-simulator/
 │   ├── utils.js            # 向量/矩阵运算工具
 │   ├── model.js            # 机构数据模型 (Node/Link/Driver/Mechanism)
 │   ├── solver.js           # Newton-Raphson 运动学求解器
-│   ├── presets.js          # 8 个内置预设机构
+│   ├── presets.js          # 9 个内置预设机构
 │   ├── canvas.js           # Canvas 2D 渲染器
 │   ├── interaction.js      # 交互系统（三种模式状态机）
 │   └── ui.js               # 用户界面管理器

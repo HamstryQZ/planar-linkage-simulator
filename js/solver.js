@@ -195,28 +195,32 @@ class NewtonRaphsonSolver {
                 // 超定系统: 最小二乘
                 Δx = Planar.Matrix.solveLeastSquares(J, negC);
             } else {
-                // 欠定系统: 用正规方程 + 最小范数解
-                // 使用 Jᵀ 代替 J⁻¹
-                const JT = Planar.Matrix.transpose(J);
-                Δx = Planar.Matrix.matVecMul(JT, negC);
-                // 正规化
-                const JJT = Planar.Matrix.zeros(nVars, nVars);
-                for (let i = 0; i < nVars; i++) {
-                    for (let j = 0; j < nVars; j++) {
+                // 欠定系统: 最小范数解 Δx = Jᵀ · (J·Jᵀ)⁻¹ · (-C)
+                // 构造 A = J·Jᵀ (nConstraints × nConstraints，满秩)
+                const A = Planar.Matrix.zeros(nConstraints, nConstraints);
+                for (let i = 0; i < nConstraints; i++) {
+                    for (let j = 0; j < nConstraints; j++) {
                         let sum = 0;
-                        for (let k = 0; k < nConstraints; k++) {
-                            sum += J[k][i] * J[k][j];
+                        for (let k = 0; k < nVars; k++) {
+                            sum += J[i][k] * J[j][k];
                         }
-                        JJT[i][j] = sum;
+                        A[i][j] = sum;
                     }
                 }
-                const JnegC = Planar.Matrix.matVecMul(JT, negC);
-                const λ = Planar.Matrix.solve(JJT, JnegC);
+                // 解 A·λ = -C
+                const λ = Planar.Matrix.solve(A, negC);
                 if (λ) {
+                    // Δx = Jᵀ · λ
+                    const JT = Planar.Matrix.transpose(J);
                     Δx = Planar.Matrix.matVecMul(JT, λ);
                 } else {
-                    // 奇异，直接使用梯度下降
-                    Δx = JnegC;
+                    // 奇异，使用梯度下降
+                    const JT = Planar.Matrix.transpose(J);
+                    const grad = Planar.Matrix.matVecMul(JT, C);
+                    for (let i = 0; i < grad.length; i++) grad[i] = -grad[i];
+                    const stepSize = this._lineSearch(mech, varIndex, freeNodes, grad, maxErr);
+                    Δx = grad;
+                    for (let i = 0; i < Δx.length; i++) Δx[i] *= stepSize;
                 }
             }
 
@@ -342,13 +346,45 @@ class NewtonRaphsonSolver {
      * @returns {boolean} 是否成功
      */
     solveStep(mech, dt) {
-        // 1. 推进驱动角度
+        // 1. 保存当前位置快照（用于严重发散时回退）
+        const snapshot = new Map();
+        for (const [id, node] of mech.nodes) {
+            snapshot.set(id, { x: node.getX(), y: node.getY() });
+        }
+
+        // 2. 保存驱动角度快照
+        const driverSnapshot = [];
+        for (const driver of mech.drivers.values()) {
+            driverSnapshot.push({ id: driver.id, theta: driver.theta });
+        }
+
+        // 3. 推进驱动角度
         for (const driver of mech.drivers.values()) {
             driver.step(dt);
         }
 
-        // 2. 用当前配置作为初始猜测，求解
-        return this.solve(mech);
+        // 4. 用当前配置作为初始猜测，求解
+        const converged = this.solve(mech);
+
+        if (!converged) {
+            // 5. 分级回退：
+            //    严重发散（奇异）→ 回退到快照位置，机构保持静止
+            //    轻度不收敛（residual 尚可）→ 保留最后迭代位置，机构继续运动但不完美
+            if (this.singular) {
+                for (const [id, node] of mech.nodes) {
+                    const pos = snapshot.get(id);
+                    if (pos) node.setPos(pos.x, pos.y);
+                }
+                for (const ds of driverSnapshot) {
+                    const driver = mech.getDriver(ds.id);
+                    if (driver) driver.setAngle(ds.theta);
+                }
+                return false;
+            }
+            // 轻度不收敛：保留解算位置，继续动画
+        }
+
+        return true;
     }
 
     /**

@@ -159,23 +159,24 @@ Planar.Presets.register(
     'Watt 六杆机构',
     'Watt 型六杆机构，1 自由度。由两个四杆回路串联而成，常用于机械夹持和步进运动。',
     (mech) => {
-        // 第一回路：四杆
+        // 第一回路：四杆机构
         mech.addNode(0, 0, true);       // 1: 固定
         mech.addNode(180, -100, true);  // 2: 固定
-        mech.addNode(50, 0, false);     // 3: 自由
-        mech.addNode(160, -100, false); // 4: 自由
-        mech.addNode(160, 30, false);   // 5: 自由 (第一回路连杆上延伸)
-        mech.addNode(120, 80, false);   // 6: 自由 (末端)
+        mech.addNode(50, 0, false);     // 3: 自由 (曲柄销)
+        mech.addNode(160, -100, false); // 4: 自由 (摇杆上端)
+        // 第二回路：从节点4延伸
+        mech.addNode(180, -10, false);  // 5: 自由 (浮动三角形顶点)
+        mech.addNode(150, 60, false);   // 6: 自由 (末端执行器)
 
         mech.addLink(1, 3, 50);         // 曲柄
-        mech.addLink(3, 4, 150);        // 连杆1
+        mech.addLink(3, 4, 150);        // 第一连杆
         mech.addLink(2, 4, 100);        // 摇杆
-        mech.addLink(1, 5, 170);        // 延伸杆（连接至节点5）
-        mech.addLink(4, 5, 130);        // 连接第二回路
-        mech.addLink(5, 6, 70);         // 末端连杆
-        mech.addLink(2, 6, 150);        // 最终连杆
+        mech.addLink(4, 5, 100);        // 三角延伸
+        mech.addLink(5, 6, 90);         // 二级连杆
+        mech.addLink(1, 5, 185);        // 侧向支撑杆
+        mech.addLink(6, 2, 170);        // 末端约束
 
-        mech.addDriver(1, 'rotary', 0.8, 0);
+        mech.addDriver(1, 'rotary', 0.6, 0.3);
     }
 );
 
@@ -217,6 +218,44 @@ Planar.Presets.register(
         mech.addLink(2, 3, 180);        // 连杆
 
         mech.addDriver(1, 'rotary', 1.5, 0);
+    }
+);
+
+// ============================================================
+// 预设 9: Dobot Magician 机械臂 (2 DOF)
+// ============================================================
+Planar.Presets.register(
+    'dobot-magician',
+    'Dobot Magician 机械臂',
+    '越疆 Dobot Magician 桌面机械臂的平面运动学模型。2 固定铰+7 自由铰+10 连杆+2 驱动，使用平行四边形机构使末端始终保持水平姿态。',
+    (mech) => {
+        // 固定基座（2个电机轴）
+        mech.addNode(200, 300, true);   // 1: 肩关节电机轴
+        mech.addNode(182, 305, true);   // 2: 小臂驱动电机轴
+
+        // 自由铰链（7个）
+        mech.addNode(290, 300, false);  // 3: 肘关节（大臂末端）
+        mech.addNode(250, 236, false);  // 4: 上臂三角顶端（平行四边形上角）
+        mech.addNode(156, 296, false);  // 5: 后置曲柄末端
+        mech.addNode(274, 266, false);  // 6: 推杆-前臂连接点
+        mech.addNode(370, 283, false);  // 7: 腕关节
+        mech.addNode(330, 219, false);  // 8: 平行四边形远端铰
+        mech.addNode(362, 278, false);  // 9: 末端执行器（夹爪）
+
+        // 连杆（10 根，DOF = 2×7 - 10 - 2 = 2）
+        mech.addLink(1, 3, 90);         // 大臂（驱动1）
+        mech.addLink(1, 4, 82);         // 上臂三角顶边
+        mech.addLink(3, 4, 76);         // 上臂三角斜边
+        mech.addLink(4, 8, 82);         // 平行四边形上杆 ∥ 前臂
+        mech.addLink(8, 7, 76);         // 平行四边形前杆 ∥ 上臂三角
+        mech.addLink(2, 5, 28);         // 后置曲柄（驱动2）
+        mech.addLink(5, 6, 122);        // 推杆
+        mech.addLink(6, 7, 98);         // 前臂推杆段
+        mech.addLink(3, 6, 38);         // 前臂肘推段
+        mech.addLink(7, 9, 10);         // 末端夹爪
+
+        mech.addDriver(1, 'rotary', 0.6, 0.2);      // 大臂驱动（link 1）
+        mech.addDriver(6, 'rotary', -0.8, -0.3);    // 小臂驱动（link 6: 后置曲柄）
     }
 );
 
