@@ -96,6 +96,8 @@ class InteractionManager {
         this.renderer.setMechanism(mech);
         this._buildState.firstNodeId = null;
         this._buildState.pendingLink = false;
+        this.renderer.selectedNode = null;
+        this.renderer.selectedLink = null;
         if (this._animState.playing) this.stopAnimation();
         // 设置新机构时清空撤销栈
         this._undoStack = [];
@@ -312,7 +314,8 @@ class InteractionManager {
     // 构建模式
     // ============================================================
     _onBuildPointerDown(pos, isLeft, isRight) {
-        const hit = this.renderer.hitTestNode(pos.x, pos.y);
+        const hitNode = this.renderer.hitTestNode(pos.x, pos.y);
+        const hitLink = hitNode ? null : this.renderer.hitTestLink(pos.x, pos.y);
 
         if (isRight) {
             // 右键：固定节点
@@ -321,27 +324,36 @@ class InteractionManager {
             return;
         }
 
-        if (hit) {
+        if (hitNode) {
             // 点击节点
             if (this._buildState.firstNodeId === null) {
                 // 第一个节点
-                this._buildState.firstNodeId = hit.node.id;
-                this.renderer.selectedNode = hit.node.id;
+                this._buildState.firstNodeId = hitNode.node.id;
+                this.renderer.selectedNode = hitNode.node.id;
+                this.renderer.selectedLink = null;
                 this.renderer.render(this.mechanism);
-            } else if (this._buildState.firstNodeId !== hit.node.id) {
+            } else if (this._buildState.firstNodeId !== hitNode.node.id) {
                 // 第二个节点：创建连杆
-                this.addLink(this._buildState.firstNodeId, hit.node.id);
+                this.addLink(this._buildState.firstNodeId, hitNode.node.id);
                 this._buildState.firstNodeId = null;
                 this._buildState.pendingLink = false;
                 this.renderer.selectedNode = null;
+                this.renderer.selectedLink = null;
                 this.renderer.render(this.mechanism);
             } else {
                 // 点击同一个节点：取消
                 this._buildState.firstNodeId = null;
                 this._buildState.pendingLink = false;
                 this.renderer.selectedNode = null;
+                this.renderer.selectedLink = null;
                 this.renderer.render(this.mechanism);
             }
+        } else if (isLeft && hitLink) {
+            this._buildState.firstNodeId = null;
+            this._buildState.pendingLink = false;
+            this.renderer.selectedNode = null;
+            this.renderer.selectedLink = hitLink.link.id;
+            this.renderer.render(this.mechanism);
         } else {
             // 左键空白：添加自由节点
             const world = this.renderer.screenToWorld(pos.x, pos.y);
@@ -366,11 +378,24 @@ class InteractionManager {
     _onDragPointerDown(e, pos, isLeft) {
         if (!this.mechanism) return;
 
-        const hit = this.renderer.hitTestNode(pos.x, pos.y);
-        if (hit && !hit.node.fixed) {
+        const hitNode = this.renderer.hitTestNode(pos.x, pos.y);
+        if (hitNode) {
+            this.renderer.selectedNode = hitNode.node.id;
+            this.renderer.selectedLink = null;
+            this.renderer.render(this.mechanism);
+        } else {
+            const hitLink = this.renderer.hitTestLink(pos.x, pos.y);
+            if (hitLink) {
+                this.renderer.selectedNode = null;
+                this.renderer.selectedLink = hitLink.link.id;
+                this.renderer.render(this.mechanism);
+            }
+        }
+
+        if (isLeft && hitNode && !hitNode.node.fixed) {
             // 开始拖拽自由节点
             this._dragState.dragging = true;
-            this._dragState.draggedNodeId = hit.node.id;
+            this._dragState.draggedNodeId = hitNode.node.id;
             this._dragState.dragTargetX = pos.x;
             this._dragState.dragTargetY = pos.y;
             // 防止 pointer 丢失捕获
@@ -545,6 +570,7 @@ class InteractionManager {
                 this.mechanism.removeDriver(id);
                 this.renderer.render(this.mechanism);
                 if (this.onChange) this.onChange(this.mechanism);
+                this._updateStatus();
                 return;
             }
         }
@@ -552,6 +578,33 @@ class InteractionManager {
         this.mechanism.addDriver(linkId, 'rotary', 1.0, 0);
         this.renderer.render(this.mechanism);
         if (this.onChange) this.onChange(this.mechanism);
+        this._updateStatus();
+    }
+
+    clearSelection() {
+        this._buildState.firstNodeId = null;
+        this._buildState.pendingLink = false;
+        this.renderer.selectedNode = null;
+        this.renderer.selectedLink = null;
+        this.renderer.render(this.mechanism);
+    }
+
+    deleteSelection() {
+        if (this.renderer.selectedNode) {
+            this.removeNode(this.renderer.selectedNode);
+            return true;
+        }
+        if (this.renderer.selectedLink) {
+            this.removeLink(this.renderer.selectedLink);
+            return true;
+        }
+        return false;
+    }
+
+    toggleDriverOnSelection() {
+        if (!this.renderer.selectedLink) return false;
+        this.toggleDriver(this.renderer.selectedLink);
+        return true;
     }
 
     // ============================================================
@@ -579,18 +632,10 @@ class InteractionManager {
 
         switch (action) {
             case 'delete':
-                if (this.renderer.selectedNode) {
-                    this.removeNode(this.renderer.selectedNode);
-                } else if (this.renderer.selectedLink) {
-                    this.removeLink(this.renderer.selectedLink);
-                }
+                this.deleteSelection();
                 break;
             case 'cancel':
-                this._buildState.firstNodeId = null;
-                this._buildState.pendingLink = false;
-                this.renderer.selectedNode = null;
-                this.renderer.selectedLink = null;
-                this.renderer.render(this.mechanism);
+                this.clearSelection();
                 break;
             case 'modeBuild':
                 this.setMode(this.MODE.BUILD);
@@ -614,9 +659,7 @@ class InteractionManager {
                 this.renderer.render(this.mechanism);
                 break;
             case 'toggleDriver':
-                if (this.renderer.selectedLink) {
-                    this.toggleDriver(this.renderer.selectedLink);
-                }
+                this.toggleDriverOnSelection();
                 break;
         }
     }

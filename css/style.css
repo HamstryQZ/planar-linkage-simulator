@@ -373,6 +373,28 @@ kbd {
     gap: 4px;
 }
 
+.mobile-actions {
+    display: none;
+}
+
+.mobile-action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.mobile-action-grid .ui-btn {
+    margin-bottom: 0;
+    padding: 8px 6px;
+    font-size: 12px;
+}
+
+.mobile-hint {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
 /* ============================================================
    状态栏
    ============================================================ */
@@ -440,5 +462,9 @@ kbd {
 
     .shortcuts {
         display: none;
+    }
+
+    .mobile-actions {
+        display: block;
     }
 }

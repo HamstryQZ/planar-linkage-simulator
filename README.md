@@ -56,6 +56,16 @@ open index.html
 xdg-open index.html
 ```
 
+### 发布到 GitHub Pages（手机访问推荐）
+
+仓库已包含自动部署工作流：`.github/workflows/deploy-pages.yml`。  
+首次启用时请在 GitHub 仓库执行：
+
+1. 进入 **Settings → Pages**
+2. **Build and deployment** 的 **Source** 选择 **GitHub Actions**
+3. 推送到 `main` 分支后，等待 `Deploy static site to GitHub Pages` 工作流完成
+4. 使用生成的 `https://<用户名>.github.io/<仓库名>/` 链接在手机浏览器打开
+
 ## 项目结构
 
 ```
@@ -86,6 +96,7 @@ planar-linkage-simulator/
 | 左键点击空白 | 添加自由节点 |
 | 右键点击空白 | 添加固定节点 |
 | 左键点击节点×2 | 创建连杆 |
+| 左键点击连杆 | 选中连杆 |
 | 点击连杆 + D 键 | 设为/取消驱动 |
 | Delete 键 | 删除选中元素 |
 | Escape 键 | 取消选中 |
@@ -95,6 +106,7 @@ planar-linkage-simulator/
 | 操作 | 效果 |
 |------|------|
 | 拖拽自由节点 | 逆运动学实时求解，杆长严格不变 |
+| 点击节点/连杆 | 选中元素（可删除/设驱动） |
 | 滚轮 | 缩放画布 |
 | 中键/Shift+拖拽 | 平移画布 |
 
@@ -106,6 +118,16 @@ planar-linkage-simulator/
 | R 键 | 重置位置 |
 | 速度滑块 | 调节 0.1x ~ 5x |
 | C 键 | 清除轨迹 |
+
+### 移动端操作
+
+移动端无需键盘：在右侧面板使用 **移动端快捷操作** 区域完成核心操作。
+
+- 点击节点/连杆完成选中
+- **设/取消驱动**：对选中连杆执行驱动开关
+- **删除选中**：删除选中的节点或连杆
+- **播放/暂停**：自动切换到动画模式并开始/暂停
+- **重置 / 清轨迹**：对应键盘 `R / C`
 
 ## 技术架构
 
