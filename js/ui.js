@@ -526,12 +526,15 @@ class UIManager {
 
         panel.style.display = 'block';
         let html = '';
-        for (const driver of this.mechanism.drivers.values()) {
+        const drivers = Array.from(this.mechanism.drivers.values()).sort((a, b) => a.id - b.id);
+        for (const driver of drivers) {
             const link = this.mechanism.getLink(driver.linkId);
-            const linkLabel = link ? `L#${driver.linkId}` : `(#${driver.linkId})`;
+            const nodeLabel = link ? `N#${link.nodeA} → N#${link.nodeB}` : '连杆不存在';
+            const linkLabel = link ? `L#${driver.linkId}` : `L#${driver.linkId} (失效)`;
             html += `
                 <div style="margin-bottom:6px;padding:4px;border:1px solid #ddd;border-radius:3px;">
-                    <div style="font-weight:bold;margin-bottom:2px;">驱动 ${driver.id} ${driver.active?'🟢':'⚪'} ${linkLabel}</div>
+                    <div style="font-weight:bold;margin-bottom:2px;">驱动 D#${driver.id} ${driver.active?'🟢':'⚪'} ${linkLabel}</div>
+                    <div style="font-size:10px;color:#777;margin-bottom:4px;">${nodeLabel}</div>
                     <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
                         <span style="font-size:10px;">ω:</span>
                         <input type="number" step="0.1" value="${driver.omega.toFixed(1)}"

@@ -31,7 +31,10 @@ class InteractionManager {
         // 构建模式状态
         this._buildState = {
             firstNodeId: null,       // 连线第一个节点
-            pendingLink: false
+            pendingLink: false,
+            pointerDownNodeId: null,
+            pointerDownPos: null,
+            nodeDragging: false
         };
 
         // 拖动模式状态
@@ -236,7 +239,7 @@ class InteractionManager {
 
         switch (this.mode) {
             case this.MODE.BUILD:
-                this._onBuildPointerDown(pos, isLeft, isRight);
+                this._onBuildPointerDown(e, pos, isLeft, isRight);
                 break;
             case this.MODE.DRAG:
                 this._onDragPointerDown(e, pos, isLeft);
@@ -274,7 +277,7 @@ class InteractionManager {
 
         switch (this.mode) {
             case this.MODE.BUILD:
-                this._onBuildPointerMove(pos);
+                this._onBuildPointerMove(pos, e);
                 break;
             case this.MODE.DRAG:
                 this._onDragPointerMove(pos, e);
@@ -292,9 +295,11 @@ class InteractionManager {
             this._dragState.draggedNodeId = null;
         }
 
+        const pos = this._getPointerPos(e);
+
         switch (this.mode) {
             case this.MODE.BUILD:
-                this._onBuildPointerUp();
+                this._onBuildPointerUp(pos);
                 break;
         }
     }
@@ -313,7 +318,7 @@ class InteractionManager {
     // ============================================================
     // 构建模式
     // ============================================================
-    _onBuildPointerDown(pos, isLeft, isRight) {
+    _onBuildPointerDown(e, pos, isLeft, isRight) {
         const hitNode = this.renderer.hitTestNode(pos.x, pos.y);
         const hitLink = hitNode ? null : this.renderer.hitTestLink(pos.x, pos.y);
 
@@ -324,31 +329,14 @@ class InteractionManager {
             return;
         }
 
+        if (!isLeft) return;
+
         if (hitNode) {
-            // 点击节点
-            if (this._buildState.firstNodeId === null) {
-                // 第一个节点
-                this._buildState.firstNodeId = hitNode.node.id;
-                this.renderer.selectedNode = hitNode.node.id;
-                this.renderer.selectedLink = null;
-                this.renderer.render(this.mechanism);
-            } else if (this._buildState.firstNodeId !== hitNode.node.id) {
-                // 第二个节点：创建连杆
-                this.addLink(this._buildState.firstNodeId, hitNode.node.id);
-                this._buildState.firstNodeId = null;
-                this._buildState.pendingLink = false;
-                this.renderer.selectedNode = null;
-                this.renderer.selectedLink = null;
-                this.renderer.render(this.mechanism);
-            } else {
-                // 点击同一个节点：取消
-                this._buildState.firstNodeId = null;
-                this._buildState.pendingLink = false;
-                this.renderer.selectedNode = null;
-                this.renderer.selectedLink = null;
-                this.renderer.render(this.mechanism);
-            }
-        } else if (isLeft && hitLink) {
+            this._buildState.pointerDownNodeId = hitNode.node.id;
+            this._buildState.pointerDownPos = { x: pos.x, y: pos.y };
+            this._buildState.nodeDragging = false;
+            this.renderer.canvas.setPointerCapture(e.pointerId);
+        } else if (hitLink) {
             this._buildState.firstNodeId = null;
             this._buildState.pendingLink = false;
             this.renderer.selectedNode = null;
@@ -361,15 +349,78 @@ class InteractionManager {
         }
     }
 
-    _onBuildPointerMove(pos) {
+    _onBuildPointerMove(pos, e) {
+        if (this._buildState.pointerDownNodeId !== null && e.buttons !== 0) {
+            const start = this._buildState.pointerDownPos;
+            const moved = start ? Math.hypot(pos.x - start.x, pos.y - start.y) : 0;
+            if (!this._buildState.nodeDragging && moved > 4) {
+                this._saveSnapshot();
+                this._buildState.nodeDragging = true;
+                this._buildState.firstNodeId = null;
+                this._buildState.pendingLink = false;
+                this.renderer.selectedNode = this._buildState.pointerDownNodeId;
+                this.renderer.selectedLink = null;
+            }
+            if (this._buildState.nodeDragging) {
+                const node = this.mechanism.getNode(this._buildState.pointerDownNodeId);
+                if (node) {
+                    const world = this.renderer.screenToWorld(pos.x, pos.y);
+                    node.setPos(world.x, world.y);
+                    this._updateConnectedLinkLengths(node.id);
+                    this.renderer.render(this.mechanism);
+                    this._updateStatus();
+                }
+                return;
+            }
+        }
+
         // 在连线过程中，显示预览虚线
         if (this._buildState.firstNodeId !== null) {
             this._buildState.pendingLink = true;
         }
     }
 
-    _onBuildPointerUp() {
-        // 不需要特殊处理
+    _onBuildPointerUp(pos) {
+        const nodeId = this._buildState.pointerDownNodeId;
+        const wasDragging = this._buildState.nodeDragging;
+        this._buildState.pointerDownNodeId = null;
+        this._buildState.pointerDownPos = null;
+        this._buildState.nodeDragging = false;
+
+        if (nodeId === null) return;
+
+        if (wasDragging) {
+            if (this.onChange) this.onChange(this.mechanism);
+            this._updateStatus();
+            return;
+        }
+
+        const hitNode = this.renderer.hitTestNode(pos.x, pos.y);
+        if (!hitNode || hitNode.node.id !== nodeId) return;
+
+        // 点击节点
+        if (this._buildState.firstNodeId === null) {
+            // 第一个节点
+            this._buildState.firstNodeId = nodeId;
+            this.renderer.selectedNode = nodeId;
+            this.renderer.selectedLink = null;
+            this.renderer.render(this.mechanism);
+        } else if (this._buildState.firstNodeId !== nodeId) {
+            // 第二个节点：创建连杆
+            this.addLink(this._buildState.firstNodeId, nodeId);
+            this._buildState.firstNodeId = null;
+            this._buildState.pendingLink = false;
+            this.renderer.selectedNode = null;
+            this.renderer.selectedLink = null;
+            this.renderer.render(this.mechanism);
+        } else {
+            // 点击同一个节点：取消
+            this._buildState.firstNodeId = null;
+            this._buildState.pendingLink = false;
+            this.renderer.selectedNode = null;
+            this.renderer.selectedLink = null;
+            this.renderer.render(this.mechanism);
+        }
     }
 
     // ============================================================
@@ -758,6 +809,17 @@ class InteractionManager {
             pos[node.id] = { x: node.getX(), y: node.getY() };
         }
         return pos;
+    }
+
+    _updateConnectedLinkLengths(nodeId) {
+        if (!this.mechanism) return;
+        for (const link of this.mechanism.links.values()) {
+            if (link.nodeA !== nodeId && link.nodeB !== nodeId) continue;
+            const a = this.mechanism.getNode(link.nodeA);
+            const b = this.mechanism.getNode(link.nodeB);
+            if (!a || !b) continue;
+            link.length = Planar.Vec2.dist(a.pos(), b.pos());
+        }
     }
 
     /** 清理资源 */
