@@ -459,7 +459,7 @@ class Mechanism {
     static fromJSON(data) {
         const mech = new Mechanism();
         mech.name = data.name || 'Untitled';
-        mech._nextId = data._nextId || { node: 1, link: 1, driver: 1 };
+        const nextIdFromData = data._nextId || { node: 1, link: 1, driver: 1 };
 
         if (data.nodes) {
             for (const nd of data.nodes) {
@@ -479,6 +479,17 @@ class Mechanism {
                 mech.drivers.set(driver.id, driver);
             }
         }
+
+        // 兼容旧数据：若缺少/错误 _nextId，自动从现有元素修正，避免新增元素 ID 冲突
+        let maxNodeId = 0, maxLinkId = 0, maxDriverId = 0;
+        for (const id of mech.nodes.keys()) maxNodeId = Math.max(maxNodeId, id);
+        for (const id of mech.links.keys()) maxLinkId = Math.max(maxLinkId, id);
+        for (const id of mech.drivers.keys()) maxDriverId = Math.max(maxDriverId, id);
+        mech._nextId = {
+            node: Math.max(nextIdFromData.node || 1, maxNodeId + 1),
+            link: Math.max(nextIdFromData.link || 1, maxLinkId + 1),
+            driver: Math.max(nextIdFromData.driver || 1, maxDriverId + 1)
+        };
         return mech;
     }
 
