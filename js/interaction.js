@@ -807,6 +807,8 @@ class InteractionManager {
         if (!this.mechanism) return;
         for (const link of this.mechanism.links.values()) {
             if (link.nodeA !== nodeId && link.nodeB !== nodeId) continue;
+            // 锁定的杆不改变长度
+            if (link.locked) continue;
             const a = this.mechanism.getNode(link.nodeA);
             const b = this.mechanism.getNode(link.nodeB);
             if (!a || !b) continue;

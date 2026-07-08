@@ -144,11 +144,13 @@ class Link {
     }
 
     toJSON() {
-        return { id: this.id, nodeA: this.nodeA, nodeB: this.nodeB, length: this.length };
+        return { id: this.id, nodeA: this.nodeA, nodeB: this.nodeB, length: this.length, locked: this.locked };
     }
 
     static fromJSON(data) {
-        return new Link(data.id, data.nodeA, data.nodeB, data.length);
+        const link = new Link(data.id, data.nodeA, data.nodeB, data.length);
+        if (data.locked !== undefined) link.locked = data.locked;
+        return link;
     }
 }
 
