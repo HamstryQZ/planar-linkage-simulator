@@ -63,11 +63,14 @@ class Node {
     }
 
     toJSON() {
-        return { id: this.id, x: this.x, y: this.y, fixed: this.fixed };
+        return { id: this.id, x: this.x, y: this.y, fixed: this.fixed, _x: this._x, _y: this._y };
     }
 
     static fromJSON(data) {
-        return new Node(data.id, data.x, data.y, data.fixed || false);
+        const node = new Node(data.id, data.x, data.y, data.fixed || false);
+        if (data._x !== undefined) node._x = data._x;
+        if (data._y !== undefined) node._y = data._y;
+        return node;
     }
 }
 
@@ -87,6 +90,7 @@ class Link {
         this.nodeB = nodeB;
         this.length = length || 0; // 延迟赋值
         this._initialized = false;
+        this.locked = false; // 锁定杆：拖拽时不改变杆长
     }
 
     /** 从节点位置计算杆长并初始化 */

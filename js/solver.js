@@ -315,19 +315,32 @@ class NewtonRaphsonSolver {
         const draggedNode = mech.getNode(draggedNodeId);
         if (!draggedNode || draggedNode.fixed) return false;
 
-        // 保存原始位置以便失败时恢复
-        const origX = draggedNode.getX();
-        const origY = draggedNode.getY();
+        // 保存所有节点位置以便失败时恢复
+        const originalPositions = new Map();
+        for (const [id, node] of mech.nodes) {
+            originalPositions.set(id, { x: node.getX(), y: node.getY() });
+        }
 
-        // 设定目标位置作为初始估计
+        // 设定目标位置
         draggedNode.setPos(targetX, targetY);
+
+        // 关键：临时将拖拽节点标记为固定（从自由变量中排除）
+        // solver 会将其视为固定铰链，只调整其他自由节点
+        const originalFixed = draggedNode.fixed;
+        draggedNode.fixed = true;
 
         // 迭代求解
         const converged = this.solve(mech);
 
+        // 恢复 originalFixed 状态
+        draggedNode.fixed = originalFixed;
+
         if (!converged) {
-            // 求解失败，恢复到原始位置
-            draggedNode.setPos(origX, origY);
+            // 求解失败，恢复全部节点到原始位置
+            for (const [id, node] of mech.nodes) {
+                const pos = originalPositions.get(id);
+                if (pos) node.setPos(pos.x, pos.y);
+            }
             return false;
         }
 
@@ -346,7 +359,7 @@ class NewtonRaphsonSolver {
      * @returns {boolean} 是否成功
      */
     solveStep(mech, dt) {
-        // 1. 保存当前位置快照（用于严重发散时回退）
+        // 1. 保存当前位置快照（用于发散时回退）
         const snapshot = new Map();
         for (const [id, node] of mech.nodes) {
             snapshot.set(id, { x: node.getX(), y: node.getY() });
@@ -368,9 +381,10 @@ class NewtonRaphsonSolver {
 
         if (!converged) {
             // 5. 分级回退：
-            //    严重发散（奇异）→ 回退到快照位置，机构保持静止
-            //    轻度不收敛（residual 尚可）→ 保留最后迭代位置，机构继续运动但不完美
-            if (this.singular) {
+            //    - 奇异发散（singular=true）→ 硬回退
+            //    - finalError 过大（>1e-1，杆长误差超过 0.3 个单位）→ 硬回退
+            //    - 轻度不收敛（finalError <= 1e-1）→ 保留解算位置继续动画
+            if (this.singular || this.finalError > 1e-1) {
                 for (const [id, node] of mech.nodes) {
                     const pos = snapshot.get(id);
                     if (pos) node.setPos(pos.x, pos.y);
@@ -381,7 +395,6 @@ class NewtonRaphsonSolver {
                 }
                 return false;
             }
-            // 轻度不收敛：保留解算位置，继续动画
         }
 
         return true;
