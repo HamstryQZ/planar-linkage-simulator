@@ -142,6 +142,11 @@ class UIManager {
                 </div>
             </div>
 
+            <div class="panel-section" id="link-panel" style="display:none;">
+                <h3 class="panel-title">连杆属性</h3>
+                <div id="link-editor" style="font-size:11px;"></div>
+            </div>
+
             <div class="panel-section" id="driver-panel" style="display:none;">
                 <h3 class="panel-title">驱动属性</h3>
                 <div id="driver-editor" style="font-size:11px;"></div>
@@ -208,6 +213,8 @@ class UIManager {
             btnDelLocal: document.getElementById('btn-del-local'),
             localList: document.getElementById('local-list'),
             validationPanel: document.getElementById('validation-panel'),
+            linkPanel: document.getElementById('link-panel'),
+            linkEditor: document.getElementById('link-editor'),
             driverPanel: document.getElementById('driver-panel'),
             driverEditor: document.getElementById('driver-editor')
         };
@@ -389,6 +396,7 @@ class UIManager {
         this.interaction.onChange = (mech) => {
             this.mechanism = mech;
             this._updateValidation();
+            this._updateLinkPanel();
             this._updateDriverPanel();
         };
     }
@@ -507,6 +515,61 @@ class UIManager {
             const icon = m.type === 'error' ? '✗' : m.type === 'warn' ? '⚠' : 'ℹ';
             return `<div style="color:${c};"><span>${icon} ${m.message}</span></div>`;
         }).join('');
+    }
+
+    // ============================================================
+    // 连杆属性面板（杆长输入 + 锁定开关）
+    // ============================================================
+    _updateLinkPanel() {
+        const panel = this.els.linkPanel;
+        const editor = this.els.linkEditor;
+        if (!panel || !editor) return;
+
+        if (!this.mechanism || this.mechanism.links.size === 0) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = 'block';
+        let html = '';
+        const links = Array.from(this.mechanism.links.values()).sort((a, b) => a.id - b.id);
+        for (const link of links) {
+            const a = this.mechanism.getNode(link.nodeA);
+            const b = this.mechanism.getNode(link.nodeB);
+            const nodeLabel = a && b ? `N#${link.nodeA} → N#${link.nodeB}` : '?';
+            html += `
+                <div style="margin-bottom:6px;padding:4px;border:1px solid #ddd;border-radius:3px;">
+                    <div style="font-weight:bold;margin-bottom:2px;">连杆 L#${link.id} ${link.locked?'🔒':''}</div>
+                    <div style="font-size:10px;color:#777;margin-bottom:4px;">${nodeLabel}</div>
+                    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                        <span style="font-size:10px;">长度:</span>
+                        <input type="number" step="1" value="${link.length.toFixed(1)}"
+                            style="width:55px;font-size:10px;padding:1px 2px;"
+                            data-link-id="${link.id}" data-field="length">
+                        <label style="font-size:10px;">
+                            <input type="checkbox" ${link.locked?'checked':''}
+                                data-link-id="${link.id}" data-field="locked"> 锁定
+                        </label>
+                    </div>
+                </div>`;
+        }
+        editor.innerHTML = html;
+
+        editor.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('change', (e) => {
+                const lid = parseInt(e.target.dataset.linkId);
+                const field = e.target.dataset.field;
+                const link = this.mechanism.getLink(lid);
+                if (!link) return;
+                if (field === 'length') {
+                    link.length = parseFloat(e.target.value) || 0;
+                } else if (field === 'locked') {
+                    link.locked = e.target.checked;
+                    // 锁定后标记渲染器重绘
+                }
+                this.renderer.render(this.mechanism);
+            });
+        });
     }
 
     // ============================================================
@@ -700,6 +763,7 @@ class UIManager {
     _refreshMechanismUI() {
         this._updateStatusBar(this._buildStatusPayload());
         this._updateValidation();
+        this._updateLinkPanel();
         this._updateDriverPanel();
         this._updatePlayButton();
     }

@@ -143,13 +143,35 @@ class Renderer {
             if (isHov) lw++;
             let c = isDriver ? this.colors.driverLink : this.colors.link;
             if (link.id === this.selectedLink) c = this.colors.selected;
-            ctx.strokeStyle = c;
-            ctx.lineWidth = lw;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(sA.x, sA.y);
-            ctx.lineTo(sB.x, sB.y);
-            ctx.stroke();
+
+            // 锁定杆：双线渲染
+            if (link.locked) {
+                lw = 4;
+                ctx.strokeStyle = c;
+                ctx.lineWidth = lw;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(sA.x, sA.y);
+                ctx.lineTo(sB.x, sB.y);
+                ctx.stroke();
+                // 第二层细线（中心）
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(sA.x, sA.y);
+                ctx.lineTo(sB.x, sB.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else {
+                ctx.strokeStyle = c;
+                ctx.lineWidth = lw;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(sA.x, sA.y);
+                ctx.lineTo(sB.x, sB.y);
+                ctx.stroke();
+            }
         }
     }
 
