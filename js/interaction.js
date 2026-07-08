@@ -424,7 +424,7 @@ class InteractionManager {
     }
 
     // ============================================================
-    // 拖动模式
+    // 手动模式（IK 求解，连杆保持刚性约束）
     // ============================================================
     _onDragPointerDown(e, pos, isLeft) {
         if (!this.mechanism) return;
@@ -444,25 +444,17 @@ class InteractionManager {
         }
 
         if (isLeft && hitNode && !hitNode.node.fixed) {
-            // 开始拖拽自由节点
+            // 开始 IK 拖拽（连杆保持刚性）
             this._dragState.dragging = true;
             this._dragState.draggedNodeId = hitNode.node.id;
             this._dragState.dragTargetX = pos.x;
             this._dragState.dragTargetY = pos.y;
-            // 防止 pointer 丢失捕获
+            // 隐式指针捕获，确保 pointerup 不丢失
             this.renderer.canvas.setPointerCapture(e.pointerId);
         }
     }
 
     _onDragPointerMove(pos, e) {
-        // 安全守卫：如果按钮已释放但 dragging 仍为 true，强制清除
-        if (this._dragState.dragging && e && e.buttons === 0 && this._dragState.draggedNodeId !== 'pan') {
-            this._dragState.dragging = false;
-            this._dragState.draggedNodeId = null;
-            this._dragState.previousPositions = null;
-            return;
-        }
-
         if (!this._dragState.dragging || this._dragState.draggedNodeId === 'pan') return;
         if (this._dragState.draggedNodeId === null) return;
 
@@ -474,14 +466,14 @@ class InteractionManager {
             this._dragState.previousPositions = this._savePositions();
         }
 
-        // 尝试求解拖拽
+        // 尝试 IK 求解：连杆保持刚性，不改变杆长
         const success = this.solver.solveDrag(this.mechanism, nodeId, world.x, world.y);
 
         if (success) {
             this.renderer.render(this.mechanism);
             this._updateStatus();
         }
-        // 求解失败时不更新位置（保持原位）
+        // 求解失败时，节点停留在上一个可行位置
     }
 
     _onDragEnd() {

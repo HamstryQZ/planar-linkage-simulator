@@ -384,7 +384,6 @@ class UIManager {
         this.interaction.onStatus = (status) => {
             this._updateStatusBar(status);
             this._updateValidation();
-            this._updateDriverPanel();
         };
         this.interaction.onModeChange = (mode) => this._onModeChanged(mode);
         this.interaction.onChange = (mech) => {
